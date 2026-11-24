@@ -1,0 +1,37 @@
+rules:
+  - id: INC-GEN-001
+    version: 1.0.0
+    title: Required field exists
+    scope: DOCUMENT
+    category: documentation
+    severity: medium
+    findingType: violation
+    given: $.info.title
+    then:
+      function: exists
+    message: API documents must define info.title.
+    remediation: Define a concise API title in the document info object.
+  - id: INC-GEN-002
+    version: 1.0.0
+    title: API description is recommended
+    scope: DOCUMENT
+    category: documentation
+    severity: low
+    findingType: risk-indicator
+    given: $.info.description
+    then:
+      function: exists
+    message: API documents should define info.description.
+    remediation: Describe the API purpose, intended consumers, and business context.
+  - id: INC-GEN-003
+    version: 1.0.0
+    title: API version is required
+    scope: DOCUMENT
+    category: governance
+    severity: medium
+    findingType: violation
+    given: $.info.version
+    then:
+      function: exists
+    message: API documents must define info.version.
+    remediation: Define a meaningful API version in the document info object.

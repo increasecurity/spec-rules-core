@@ -1,0 +1,394 @@
+openapi: 3.0.3
+info:
+  title: inspectoor API
+  version: 1.2.0
+  description: |-
+    Internal inbound API to gather informations about development projects
+    <br>
+      1.0.0 initial version <br>
+      1.1.0 delete post sbom <br>
+      1.2.0 add SecuritySchems and framework <br>
+      1.2.1 add buildDate and creationDate <br>
+      1.2.2 add Spec.requiresResolution
+tags:
+  - name: project
+    description: project API
+servers:
+  - url: http://localhost:8887
+    description: local
+paths:
+  '/projects':
+    post:
+      tags:
+        - project
+      summary: create or update a project
+      description: create all meta information to a development project
+      requestBody:
+        $ref: '#/components/requestBodies/projectBody'
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/projectRegistrationResponse'
+        '400':
+          description: "Bad request"
+        '401':
+          description: "Unauthorized"
+  '/projects/{projectId}/sboms':
+    post:
+      tags: [project]
+      summary: Upload a BOM file for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: false
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                bom: { type: string, format: binary }
+      responses:
+        '204': { description: File uploaded successfully }
+        '404': { description: Project not found }
+  '/projects/{projectId}/threat-models':
+    post:
+      tags: [project]
+      summary: Upload a threat model for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/contentEncoding'
+        - $ref: '#/components/parameters/threatModelFormat'
+        - $ref: '#/components/parameters/threatModelFormatVersion'
+        - $ref: '#/components/parameters/threatModelSourceFile'
+        - $ref: '#/components/parameters/threatModelSha256'
+      requestBody:
+        required: false
+        content:
+          application/json: { schema: { type: string, format: binary } }
+      responses:
+        '201': { description: Threat model stored }
+        '400': { description: Bad request }
+        '404': { description: Project not found }
+  '/dfds':
+    post:
+      deprecated: true
+      tags: [project]
+      summary: Upload threat-model evidence
+      description: Compatibility endpoint for existing Inspectoor plugin clients.
+      parameters:
+        - $ref: '#/components/parameters/contentEncoding'
+        - $ref: '#/components/parameters/threatModelFormat'
+        - $ref: '#/components/parameters/threatModelFormatVersion'
+        - $ref: '#/components/parameters/threatModelSourceFile'
+        - $ref: '#/components/parameters/threatModelSha256'
+        - $ref: '#/components/parameters/projectName'
+        - $ref: '#/components/parameters/groupArtifactId'
+        - $ref: '#/components/parameters/projectVersion'
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { type: string, format: binary } }
+      responses:
+        '200': { description: Threat-model evidence uploaded successfully }
+        '400': { description: Bad request }
+        '404': { description: Project not found }
+components:
+  parameters:
+    projectName:
+      name: X-INSPECTOOR-PROJECT-NAME
+      in: header
+      required: false
+      schema: { type: string }
+    groupArtifactId:
+      name: X-INSPECTOOR-GROUP-ARTIFACT-ID
+      in: header
+      required: false
+      schema: { type: string }
+    projectVersion:
+      name: X-INSPECTOOR-PROJECT-VERSION
+      in: header
+      required: false
+      schema: { type: string }
+    contentEncoding:
+      name: Content-Encoding
+      in: header
+      required: false
+      schema:
+        type: string
+        enum: [gzip]
+      description: Content compression applied to the request body.
+    threatModelFormat:
+      name: X-INSPECTOOR-FORMAT
+      in: header
+      required: false
+      schema:
+        type: string
+        enum: [threat-dragon, otm]
+      description: Detected source format of the threat model.
+    threatModelFormatVersion:
+      name: X-INSPECTOOR-FORMAT-VERSION
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Declared version of the source format.
+    threatModelSourceFile:
+      name: X-INSPECTOOR-SOURCE-FILE
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Source path of the submitted threat model.
+    threatModelSha256:
+      name: X-INSPECTOOR-SHA256
+      in: header
+      required: false
+      schema:
+        type: string
+        pattern: '^[a-fA-F0-9]{64}$'
+      description: SHA-256 digest of the uncompressed source bytes.
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    inspectoorApiKey:
+      type: apiKey
+      in: header
+      name: X-INSPECTOOR-APIKEY
+  schemas:
+    threatModelArtifactResponse:
+      type: object
+      required: [id, format, sha256, status, elementCount]
+      properties:
+        id: { type: integer, format: int64 }
+        format: { type: string }
+        formatVersion: { type: string }
+        sha256: { type: string }
+        status: { type: string, enum: [EXTRACTED] }
+        elementCount: { type: integer, format: int32 }
+    threatModelElementResponse:
+      type: object
+      required: [id, externalId, type]
+      properties:
+        id: { type: integer, format: int64 }
+        externalId: { type: string }
+        name: { type: string }
+        type: { type: string }
+        description: { type: string }
+        publicExposed: { type: boolean }
+        outOfScope: { type: boolean }
+        properties: { type: object, additionalProperties: true }
+    projectRegistrationResponse:
+      type: object
+      required: [projectId]
+      additionalProperties: false
+      properties:
+        projectId:
+          type: string
+          format: uuid
+    project:
+      type: object
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        groupId:
+          type: string
+        artifactId:
+          type: string
+        version:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        mono:
+          type: boolean
+          default: false
+        ou:
+          type: string
+        system:
+          type: string
+        tag:
+          type: string
+        realm:
+          type: string
+        framework:
+          type: string
+        creationDate:
+          type: string
+          example: "20251023"
+          pattern: "^[0-9]{8}$"
+        buildDate:
+          type: string
+          example: "20251023"
+          pattern: "^[0-9]{8}$"
+        packaging:
+          type: string
+        srcPath:
+          type: string
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/project'
+        specs:
+          type: array
+          items:
+            $ref: '#/components/schemas/spec'
+        servers:
+          type: array
+          items:
+            $ref: '#/components/schemas/server'
+    spec:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        location:
+          type: string
+        version:
+          type: string
+        info_version:
+          type: string
+        content:
+          type: string
+        servers:
+          type: array
+          items:
+            $ref: '#/components/schemas/server'
+        securitySchemes:
+          type: array
+          items:
+            $ref: '#/components/schemas/securityScheme'
+        requiresResolution:
+          type: boolean
+          default: false
+    securityScheme:
+      oneOf:
+        - $ref: '#/components/schemas/HttpSecurityScheme'
+        - $ref: '#/components/schemas/ApiKeySecurityScheme'
+        - $ref: '#/components/schemas/OAuth2SecurityScheme'
+        - $ref: '#/components/schemas/OpenIdConnectSecurityScheme'
+      discriminator:
+        propertyName: type
+        mapping:
+          http: '#/components/schemas/HttpSecurityScheme'
+          apiKey: '#/components/schemas/ApiKeySecurityScheme'
+          oauth2: '#/components/schemas/OAuth2SecurityScheme'
+          openIdConnect: '#/components/schemas/OpenIdConnectSecurityScheme'
+
+    HttpSecurityScheme:
+      type: object
+      properties:
+        type:
+          type: string
+          example: http
+        scheme:
+          type: string
+        bearerFormat:
+          type: string
+        description:
+          type: string
+      required: [type, scheme]
+
+
+    ApiKeySecurityScheme:
+      type: object
+      properties:
+        type:
+          type: string
+          example: apiKey
+        name:
+          type: string
+        in:
+          type: string
+          enum: [query, header, cookie]
+        description:
+          type: string
+      required: [type, name, in]
+
+    OAuth2SecurityScheme:
+      type: object
+      properties:
+        type:
+          type: string
+          example: oauth2
+        description:
+          type: string
+        flows:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/OAuthFlow'
+      required: [type, flows]
+
+    OAuthFlow:
+      type: object
+      properties:
+        authorizationUrl:
+          type: string
+        tokenUrl:
+          type: string
+        refreshUrl:
+          type: string
+        scopes:
+          type: object
+          additionalProperties:
+            type: string
+      required: [authorizationUrl, tokenUrl, scopes]
+
+    OpenIdConnectSecurityScheme:
+      type: object
+      properties:
+        type:
+          type: string
+          example: openIdConnect
+        openIdConnectUrl:
+          type: string
+        description:
+          type: string
+      required: [type, openIdConnectUrl]
+
+
+    server:
+      type: object
+      properties:
+        url:
+          type: string
+        description:
+          type: string
+    sbom:
+      type: object
+      properties:
+        projectname:
+          type: string
+          example: event-api
+          maxLength: 30
+        content:
+          type: string
+        type:
+          type: string
+          example: json
+  requestBodies:
+    projectBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/project'
+    sbomBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/sbom'
+security:
+  - inspectoorApiKey: []
